@@ -1045,6 +1045,25 @@ namespace Excel.Tests
 
             excelReader.Close();
 		}
-        
+
+        /// <summary>
+        /// Large SST string may be split up over multiple BIFF blocks.
+        /// </summary>
+        [TestMethod]
+        public void Test_SST_String_Spanning_Multiple_Continue_Blocks()
+        {
+            using (var excelReader = ExcelReaderFactory.CreateBinaryReader( Helper.GetTestWorkbook( "Test_SST_String_Spanning_Multiple_Continue_Blocks" ) ))
+            {
+                DataSet dataset = excelReader.AsDataSet();
+                // The first SST string fits within a block
+                Assert.AreEqual( 21018, dataset.Tables[0].Rows[0][0].ToString().Length );
+                // But the second is spanning two blocks
+                Assert.AreEqual( 19622, dataset.Tables[0].Rows[1][0].ToString().Length );
+                // The third is max sixe
+                Assert.AreEqual( 32767, dataset.Tables[0].Rows[2][0].ToString().Length );
+                // Just a small string 
+                Assert.IsTrue( dataset.Tables[0].Rows[3][0].ToString().Length < 100 );
+            }
+        }
     }
 }

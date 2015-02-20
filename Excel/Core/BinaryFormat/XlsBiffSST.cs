@@ -54,41 +54,75 @@ namespace Excel.Core.BinaryFormat
 				uint size = prefix + postfix + len + ((str.IsMultiByte) ? len : 0);
 				if (offset + size > last)
 				{
-					if (lastcontinue >= continues.Count)
-						break;
-					uint contoffset = continues[lastcontinue];
-					byte encoding = Buffer.GetByte(m_bytes, (int)contoffset + 4);
-					byte[] buff = new byte[size * 2];
-					Buffer.BlockCopy(m_bytes, (int)offset, buff, 0, (int)(last - offset));
-					if (encoding == 0 && str.IsMultiByte)
-					{
-						len -= (last - prefix - offset) / 2;
-						string temp = Encoding.Default.GetString(m_bytes,
-																 (int)contoffset + 5,
-																 (int)len);
-						byte[] tempbytes = Encoding.Unicode.GetBytes(temp);
-						Buffer.BlockCopy(tempbytes, 0, buff, (int)(last - offset), tempbytes.Length);
-						Buffer.BlockCopy(m_bytes, (int)(contoffset + 5 + len), buff, (int)(last - offset + len + len), (int)postfix);
-						offset = contoffset + 5 + len + postfix;
-					}
-					else if (encoding == 1 && str.IsMultiByte == false)
-					{
-						len -= (last - offset - prefix);
-						string temp = Encoding.Unicode.GetString(m_bytes,
-																 (int)contoffset + 5,
-																 (int)(len + len));
-						byte[] tempbytes = Encoding.Default.GetBytes(temp);
-						Buffer.BlockCopy(tempbytes, 0, buff, (int)(last - offset), tempbytes.Length);
-						Buffer.BlockCopy(m_bytes, (int)(contoffset + 5 + len + len), buff, (int)(last - offset + len), (int)postfix);
-						offset = contoffset + 5 + len + len + postfix;
-					}
-					else
-					{
-						Buffer.BlockCopy(m_bytes, (int)contoffset + 5, buff, (int)(last - offset), (int)(size - last + offset));
-						offset = contoffset + 5 + size - last + offset;
-					}
-					last = contoffset + 4 + BitConverter.ToUInt16(m_bytes, (int)contoffset + 2);
-					lastcontinue++;
+                    byte[] buff = new byte[size * 2]; uint buffOffset = 0;
+                    uint remainingSize = size; uint
+                    sizeOfDataRemainingInCurrentBlock = last - offset;
+
+                    Buffer.BlockCopy( m_bytes, (int)offset, buff, (int)buffOffset, (int)sizeOfDataRemainingInCurrentBlock );
+                    buffOffset += sizeOfDataRemainingInCurrentBlock;
+                    remainingSize -= sizeOfDataRemainingInCurrentBlock;
+
+                    while (remainingSize > 0 && lastcontinue < continues.Count)
+                    {
+                        uint contoffset = continues[lastcontinue] + 4;
+                        lastcontinue++;
+
+                        ushort contRecordSize = BitConverter.ToUInt16( m_bytes, (int)contoffset - 2 );
+                        ushort contRecordMaxStringByteSize = (ushort)(contRecordSize - 1); // 8224 - the first byte which signals the encoding
+                        last = contoffset + contRecordSize;
+
+                        byte encoding = Buffer.GetByte( m_bytes, (int)contoffset );
+                        contoffset++;
+
+
+                        sizeOfDataRemainingInCurrentBlock = remainingSize > contRecordMaxStringByteSize ? contRecordMaxStringByteSize : remainingSize;
+
+                        Buffer.BlockCopy( m_bytes, (int)contoffset, buff, (int)buffOffset, (int)sizeOfDataRemainingInCurrentBlock );
+                        buffOffset += sizeOfDataRemainingInCurrentBlock;
+                        remainingSize -= sizeOfDataRemainingInCurrentBlock;
+
+                        offset = contoffset + sizeOfDataRemainingInCurrentBlock;
+                    }
+
+
+
+
+
+                    //if (lastcontinue >= continues.Count)
+                    //    break;
+                    //uint contoffset = continues[lastcontinue];
+                    //byte encoding = Buffer.GetByte( m_bytes, (int)contoffset + 4 );
+                    //byte[] buff = new byte[size * 2];
+                    //Buffer.BlockCopy( m_bytes, (int)offset, buff, 0, (int)(last - offset) );
+                    //if (encoding == 0 && str.IsMultiByte)
+                    //{
+                    //    len -= (last - prefix - offset) / 2;
+                    //    string temp = Encoding.Default.GetString( m_bytes,
+                    //                                             (int)contoffset + 5,
+                    //                                             (int)len );
+                    //    byte[] tempbytes = Encoding.Unicode.GetBytes( temp );
+                    //    Buffer.BlockCopy( tempbytes, 0, buff, (int)(last - offset), tempbytes.Length );
+                    //    Buffer.BlockCopy( m_bytes, (int)(contoffset + 5 + len), buff, (int)(last - offset + len + len), (int)postfix );
+                    //    offset = contoffset + 5 + len + postfix;
+                    //}
+                    //else if (encoding == 1 && str.IsMultiByte == false)
+                    //{
+                    //    len -= (last - offset - prefix);
+                    //    string temp = Encoding.Unicode.GetString( m_bytes,
+                    //                                             (int)contoffset + 5,
+                    //                                             (int)(len + len) );
+                    //    byte[] tempbytes = Encoding.Default.GetBytes( temp );
+                    //    Buffer.BlockCopy( tempbytes, 0, buff, (int)(last - offset), tempbytes.Length );
+                    //    Buffer.BlockCopy( m_bytes, (int)(contoffset + 5 + len + len), buff, (int)(last - offset + len), (int)postfix );
+                    //    offset = contoffset + 5 + len + len + postfix;
+                    //}
+                    //else
+                    //{
+                    //    Buffer.BlockCopy( m_bytes, (int)contoffset + 5, buff, (int)(last - offset), (int)(size - last + offset) );
+                    //    offset = contoffset + 5 + size - last + offset;
+                    //}
+                    //last = contoffset + 4 + BitConverter.ToUInt16( m_bytes, (int)contoffset + 2 );
+                    //lastcontinue++;
 
 					str = new XlsFormattedUnicodeString(buff, 0);
 				}
